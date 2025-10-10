@@ -1,0 +1,17 @@
+# Git
+.git
+.github
+
+# Python 缓存与虚拟环境
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+env/
+venv/
+.venv/
+
+# 构建与文档中不需要打进镜像的文件
+README.md
+Dockerfile
+.dockerignore
