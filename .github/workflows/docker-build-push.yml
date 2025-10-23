@@ -1,4 +1,4 @@
-name: build-and-push-docker
+name: build-and-deploy-docker
 
 on:
   push:
@@ -7,6 +7,7 @@ on:
 
 jobs:
   build-and-push:
+    name: Build and Push Docker Image
     runs-on: ubuntu-latest
 
     steps:
@@ -37,3 +38,39 @@ jobs:
             build.workflow=${{ github.workflow }}
             build.run_id=${{ github.run_id }}
             build.run_number=${{ github.run_number }}
+
+  # 🚀 新增的自动部署 job
+  deploy:
+    name: Deploy to EC2 via AWS SSM
+    runs-on: ubuntu-latest
+    needs: build-and-push   # ✅ 只有 build-and-push 成功后才执行
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Deploy application via SSM
+        run: |
+          echo "Deploying container to EC2 instance via SSM..."
+
+          aws ssm send-command \
+            --instance-ids "${{ secrets.EC2_INSTANCE_ID }}" \
+            --document-name "AWS-RunShellScript" \
+            --comment "Automated deployment from GitHub Actions using AWS SSM" \
+            --parameters 'commands=[
+              "sudo docker pull ${{ secrets.DOCKERHUB_USERNAME }}/cs6620-app:latest",
+              "sudo docker stop cs6620-app || true",
+              "sudo docker rm cs6620-app || true",
+              "sudo docker run -d --name cs6620-app -p 80:5000 --restart unless-stopped ${{ secrets.DOCKERHUB_USERNAME }}/cs6620-app:latest"
+            ]'
+
+      # （可选）验证命令成功下发
+      - name: Verify SSM command sent
+        run: |
+          echo "Listing recent SSM commands..."
+          aws ssm list-commands --max-items 5
